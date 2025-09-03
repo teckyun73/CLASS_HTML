@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>개선과제 온라인 평가 시스템</title>
+    <!-- Chosen Palette: Calm Corporate (Tailwind Slate & Sky) -->
+    <!-- Application Structure Plan: A task-oriented, tabbed interface segregates evaluation categories (6S, 6시그마, etc.) for focused data entry. A final '종합 결과' tab serves as a summary dashboard, presenting aggregated results through tables and charts. A '평가자별 상세 결과' tab provides a granular breakdown of scores by each evaluator for transparency. This structure separates the 'input' task from the 'analysis' task, improving usability. A login gate controls access. -->
+    <!-- Visualization & Content Choices: Evaluation sections use responsive HTML tables with input fields for direct data entry. The '종합 결과' tab uses a summary table for ranked results and horizontal bar charts (Chart.js on Canvas) for visual comparison. The '평가자별 상세 결과' tab uses detailed tables to provide a complete, transparent view of the raw evaluation data. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .tab-button.active { border-color: #0ea5e9; color: #0ea5e9; background-color: #f0f9ff; }
+        .score-input { transition: all 0.2s ease-in-out; }
+        .score-input:focus { transform: scale(1.05); box-shadow: 0 0 0 2px #0ea5e9; }
+        .chart-container { position: relative; width: 100%; max-width: 600px; }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <div id="login-container" class="flex items-center justify-center min-h-screen px-4">
+        <div class="w-full max-w-md bg-white p-8 rounded-2xl shadow-xl">
+            <h2 class="text-3xl font-bold text-center text-slate-900 mb-2">평가자 로그인</h2>
+            <p class="text-center text-slate-600 mb-8">시스템 접근을 위해 로그인해 주세요.</p>
+            <div id="login-error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6" role="alert">
+                <span class="block sm:inline" id="login-error-message"></span>
+            </div>
+            <div class="space-y-6">
+                <div>
+                    <label for="evaluator-name" class="block text-sm font-medium text-slate-700">성명</label>
+                    <input type="text" id="evaluator-name" placeholder="성명 (예: 홍길동)" class="mt-1 block w-full px-4 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-slate-700">비밀번호</label>
+                    <input type="password" id="password" class="mt-1 block w-full px-4 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-sky-500 focus:border-sky-500 sm:text-sm">
+                </div>
+                <button id="login-btn" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500">
+                    로그인
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-container" class="hidden container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-slate-900">2025 경영혁신 경진대회 평가 시스템</h1>
+            <p class="text-md text-slate-600 mt-2">실시간 온라인 평가</p>
+            <button id="simulationBtn" class="mt-4 bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500">가상 평가 시뮬레이션</button>
+            <div id="userInfo" class="mt-4 text-sm text-slate-500"></div>
+        </header>
+
+        <main class="bg-white p-6 rounded-2xl shadow-lg">
+            <div class="border-b border-slate-200 mb-6">
+                <nav class="flex flex-wrap -mb-px" id="tab-buttons">
+                    <button data-tab="6s" class="tab-button active text-sm md:text-base font-medium text-center text-slate-500 border-b-2 border-transparent px-4 py-3 hover:text-slate-700 hover:border-slate-300">6S</button>
+                    <button data-tab="six_sigma" class="tab-button text-sm md:text-base font-medium text-center text-slate-500 border-b-2 border-transparent px-4 py-3 hover:text-slate-700 hover:border-slate-300">6시그마</button>
+                    <button data-tab="rnd" class="tab-button text-sm md:text-base font-medium text-center text-slate-500 border-b-2 border-transparent px-4 py-3 hover:text-slate-700 hover:border-slate-300">R&D</button>
+                    <button data-tab="ai" class="tab-button text-sm md:text-base font-medium text-center text-slate-500 border-b-2 border-transparent px-4 py-3 hover:text-slate-700 hover:border-slate-300">AI</button>
+                    <button data-tab="results" class="tab-button text-sm md:text-base font-medium text-center text-slate-500 border-b-2 border-transparent px-4 py-3 hover:text-slate-700 hover:border-slate-300">종합 결과</button>
+                    <button data-tab="detailed_results" class="tab-button text-sm md:text-base font-medium text-center text-slate-500 border-b-2 border-transparent px-4 py-3 hover:text-slate-700 hover:border-slate-300">평가자별 상세 결과</button>
+                </nav>
+            </div>
+
+            <div id="tab-content">
+            </div>
+        </main>
+    </div>
+
+    <div id="messageModal" class="fixed inset-0 bg-gray-900 bg-opacity-60 hidden items-center justify-center z-50 transition-opacity duration-300 opacity-0">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md text-center transform transition-all duration-300 scale-95 opacity-0" id="modal-content">
+            <h3 class="text-xl font-bold text-slate-800 mb-4">알림</h3>
+            <p id="modalMessage" class="text-slate-600 mb-6"></p>
+            <button id="closeModalBtn" class="w-full bg-sky-600 text-white px-6 py-2 rounded-lg hover:bg-sky-700 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500">확인</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, setLogLevel, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "your-api-key", authDomain: "your-auth-domain", projectId: "your-project-id" };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-innovation-eval-app';
+        
+        const presenters = {
+            "6s": [
+                { id: "6s-1", name: "안성규 선임" }, { id: "6s-2", name: "김효정 선임" },
+                { id: "6s-3", name: "김태성 책임" }, { id: "6s-4", name: "권미진 선임" }, { id: "6s-5", name: "박용진 선임" }
+            ],
+            "six_sigma": [
+                { id: "ss-1", name: "강선옥 책임" }, { id: "ss-2", name: "김광백 책임" },
+                { id: "ss-3", name: "박성훈 책임" }, { id: "ss-4", name: "한기영 책임" }
+            ],
+            "rnd": [
+                { id: "rd-1", name: "김준현 책임" }, { id: "rd-2", name: "김진배 책임" }, { id: "rd-3", name: "손병길 수석" },
+                { id: "rd-4", name: "홍건수 책임" }, { id: "rd-5", name: "문상현 책임" }, { id: "rd-6", name: "한성덕 책임" }
+            ],
+            "ai": [
+                { id: "ai-1", name: "이세돌 연구원" }, { id: "ai-2", name: "알파고 책임" }, { id: "ai-3", name: "베타고 선임" }
+            ]
+        };
+
+        const evaluationCriteria = {
+            "6s": [
+                { key: "strategy", name: "경영전략과의 연계성", max: 20 }, { key: "goal_setting", name: "목표 설정의 적정성", max: 10 },
+                { key: "achievement", name: "목표 달성도", max: 10 }, { key: "improvement", name: "개선후 향상도", max: 20 },
+                { key: "sustainability", name: "관리체계 실행 정도", max: 20 }, { key: "creativity", name: "창의성, 노력도", max: 20 }
+            ],
+            "six_sigma": [
+                { key: "define", name: "정의(D)", max: 15 }, { key: "measure", name: "측정(M)", max: 10 },
+                { key: "analyze", name: "분석(A)", max: 25 }, { key: "improve", name: "개선(I)", max: 25 },
+                { key: "control", name: "관리(C)", max: 5 }, { key: "best_practice", name: "Best Practice", max: 10 }, { key: "attitude", name: "태도", max: 10 }
+            ],
+            "rnd": [
+                { key: "topic", name: "주제 선정 타당성", max: 20 }, { key: "creativity", name: "개선안 창의성", max: 20 },
+                { key: "improvement", name: "개선안 향상도", max: 20 }, { key: "completeness", name: "개선안 완성도", max: 20 },
+                { key: "practicality", name: "개선안 실용성", max: 20 }
+            ],
+            "ai": [
+                { key: "topic_ai", name: "주제 선정 타당성", max: 20 }, { key: "data_usage", name: "데이터 활용 적정성", max: 20 },
+                { key: "model_creativity", name: "모델/알고리즘 창의성", max: 20 }, { key: "performance", name: "성능 및 효과성", max: 20 },
+                { key: "scalability", name: "확장성 및 운영성", max: 20 }
+            ]
+        };
+        
+        const categoryDisplayNames = { "6s": "6S", "six_sigma": "6시그마", "rnd": "R&D", "ai": "AI" };
+        
+        const introTexts = {
+            "6s": "이 섹션에서는 **6S 부문** 발표자들의 과제를 평가합니다. 각 평가 항목의 배점을 참고하여 점수를 입력해 주세요. 점수는 실시간으로 저장 및 집계됩니다.",
+            "six_sigma": "이 섹션에서는 **6시그마 부문** 발표자들의 과제를 평가합니다. DMAIC 단계별 평가 항목을 기준으로 점수를 입력해 주세요. 모든 점수는 자동으로 저장됩니다.",
+            "rnd": "이 섹션에서는 **R&D 부문** 발표자들의 과제를 평가합니다. 주제 선정부터 실용성까지 각 항목을 신중하게 평가해 주시기 바랍니다.",
+            "ai": "이 섹션에서는 **AI 부문** 발표자들의 과제를 평가합니다. 데이터 활용, 모델의 창의성 및 성능을 중심으로 평가를 진행해 주세요.",
+            "results": "이곳에서는 모든 평가자들의 점수를 합산한 **최종 결과**를 부문별로 확인할 수 있습니다. 평균 점수를 기준으로 순위가 매겨지며, 시각적인 비교를 위해 차트가 함께 제공됩니다.",
+            "detailed_results": "이곳에서는 각 평가자가 발표자별, 항목별로 부여한 모든 점수를 상세하게 확인할 수 있습니다. 이를 통해 평가자 간의 점수 편차를 분석하고, 평가의 공정성을 검토할 수 있습니다."
+        };
+
+        let db, auth;
+        let evaluatorId = null; 
+        let allScores = {}; 
+        let activeTab = "6s";
+        let submissionStatus = {};
+        let isFirebaseInitialized = false;
+
+        function debounce(func, delay) {
+            let timeout;
+            return function(...args) {
+                const context = this;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(context, args), delay);
+            };
+        }
+        
+        function showMessage(message) {
+            const modal = document.getElementById('messageModal');
+            const modalContent = document.getElementById('modal-content');
+            document.getElementById('modalMessage').textContent = message;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95', 'opacity-0');
+            }, 10);
+        }
+
+        function hideMessage() {
+            const modal = document.getElementById('messageModal');
+            const modalContent = document.getElementById('modal-content');
+            modal.classList.add('opacity-0');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 300);
+        }
+
+        async function initializeFirebase() {
+            if (isFirebaseInitialized) return;
+            isFirebaseInitialized = true;
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setLogLevel('debug');
+                
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        if (evaluatorId) {
+                            document.getElementById('userInfo').textContent = `평가자: ${evaluatorId}`;
+                            setupRealtimeListeners();
+                            setupSubmissionListener();
+                        }
+                    } else {
+                        try {
+                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                                await signInWithCustomToken(auth, __initial_auth_token);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (error) { console.error("Anonymous sign-in failed:", error); }
+                    }
+                });
+            } catch (error) { console.error("Firebase initialization failed:", error); }
+        }
+
+        function setupSubmissionListener() {
+            if (!evaluatorId) return;
+            const submissionDocRef = doc(db, `/artifacts/${appId}/public/data/submissions`, evaluatorId);
+            onSnapshot(submissionDocRef, (docSnap) => {
+                submissionStatus = docSnap.exists() ? docSnap.data() : {};
+                if (document.getElementById('app-container').offsetParent !== null) {
+                    render();
+                }
+            });
+        }
+
+        function setupRealtimeListeners() {
+            const collectionPath = `/artifacts/${appId}/public/data/scores`;
+            const scoresCollection = collection(db, collectionPath);
+            
+            onSnapshot(scoresCollection, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === "added" || change.type === "modified") { allScores[change.doc.id] = change.doc.data(); }
+                    if (change.type === "removed") { delete allScores[change.doc.id]; }
+                });
+                if (document.getElementById('app-container').offsetParent !== null) {
+                    if (activeTab === 'results' || activeTab === 'detailed_results') {
+                        render();
+                    } else {
+                        renderColumnTotals(activeTab);
+                    }
+                }
+            }, (error) => {
+                console.error("Snapshot listener error:", error);
+            });
+        }
+        
+        async function submitCategory(categoryKey) {
+            if (!evaluatorId) return;
+
+            let allScoresFilled = true;
+            const categoryPresenters = presenters[categoryKey];
+            const criteria = evaluationCriteria[categoryKey];
+
+            for (const presenter of categoryPresenters) {
+                for (const criterion of criteria) {
+                    const score = allScores[presenter.id]?.scores?.[evaluatorId]?.[criterion.key];
+                    if (score === undefined || score === null || score === '') {
+                        allScoresFilled = false;
+                        break;
+                    }
+                }
+                if (!allScoresFilled) break;
+            }
+
+            if (!allScoresFilled) {
+                showMessage(`'${categoryDisplayNames[categoryKey]}' 부문의 모든 항목을 평가해야 제출할 수 있습니다.`);
+                return;
+            }
+
+            const submissionDocRef = doc(db, `/artifacts/${appId}/public/data/submissions`, evaluatorId);
+            try {
+                await setDoc(submissionDocRef, { 
+                    [categoryKey]: true,
+                    evaluatorName: evaluatorId
+                 }, { merge: true });
+                showMessage(`'${categoryDisplayNames[categoryKey]}' 부문 평가를 최종 제출했습니다. 이제 수정할 수 없습니다.`);
+            } catch (error) {
+                console.error("Error submitting category:", error);
+                showMessage("제출 중 오류가 발생했습니다. 다시 시도해 주세요.");
+            }
+        }
+        
+        async function updateScore(presenterId, criterionKey, score) {
+            if (!evaluatorId) return;
+            const scoreValue = score === '' ? null : parseInt(score, 10);
+            if (score !== '' && isNaN(scoreValue)) return;
+            
+            const docRef = doc(db, `/artifacts/${appId}/public/data/scores/${presenterId}`);
+            
+            const scoreUpdatePayload = {
+                [`scores.${evaluatorId}.${criterionKey}`]: scoreValue
+            };
+
+            try {
+                const category = Object.keys(presenters).find(cat => presenters[cat].some(p => p.id === presenterId));
+                if (!category) return;
+                const baseData = {
+                    id: presenterId,
+                    name: presenters[category].find(p => p.id === presenterId).name,
+                    category: category
+                };
+                await setDoc(docRef, baseData, { merge: true });
+                await updateDoc(docRef, scoreUpdatePayload);
+            } catch (error) {
+                console.error("Error updating score: ", error);
+            }
+        }
+        
+        async function updateSimulatedScore(simulatedUserId, presenterId, criterionKey, score) {
+            const docRef = doc(db, `/artifacts/${appId}/public/data/scores/${presenterId}`);
+            const scoreUpdatePayload = {
+                [`scores.${simulatedUserId}.${criterionKey}`]: parseInt(score, 10)
+            };
+             try {
+                const category = Object.keys(presenters).find(cat => presenters[cat].some(p => p.id === presenterId));
+                if (!category) return;
+                const baseData = {
+                    id: presenterId,
+                    name: presenters[category].find(p => p.id === presenterId).name,
+                    category: category
+                };
+                await setDoc(docRef, baseData, { merge: true });
+                await updateDoc(docRef, scoreUpdatePayload);
+            } catch (error) {
+                console.error(`Simulation score update failed for ${presenterId}:`, error);
+            }
+        }
+
+        async function runSimulation() {
+            const btn = document.getElementById('simulationBtn');
+            btn.disabled = true;
+            btn.textContent = '시뮬레이션 진행 중...';
+            const simulatedUserIds = Array.from({ length: 15 }, () => `sim-user-${crypto.randomUUID()}`);
+            const promises = [];
+            for (const userId of simulatedUserIds) {
+                for (const category in presenters) {
+                    for (const presenter of presenters[category]) {
+                        for (const criterion of evaluationCriteria[category]) {
+                            const randomScore = Math.floor(Math.random() * (criterion.max * 0.8) + (criterion.max * 0.2));
+                            promises.push(updateSimulatedScore(userId, presenter.id, criterion.key, randomScore));
+                        }
+                    }
+                }
+            }
+            await Promise.all(promises);
+            btn.textContent = '시뮬레이션 완료';
+            showMessage('15명의 가상 평가자가 평가를 완료했습니다. 종합 결과 탭에서 확인하세요.');
+        }
+
+        function render() {
+            const tabContent = document.getElementById('tab-content');
+            tabContent.innerHTML = ''; 
+
+            if (activeTab === 'results') {
+                tabContent.innerHTML = renderResults();
+                setTimeout(renderAllCharts, 0);
+            } else if (activeTab === 'detailed_results') {
+                tabContent.innerHTML = renderDetailedResults();
+            }
+            else {
+                tabContent.innerHTML = renderEvaluationTable(activeTab);
+            }
+        }
+        
+        function renderColumnTotals(categoryKey) {
+            const table = document.querySelector('#tab-content table');
+            if (!table || !table.tfoot) return;
+            
+            const criteria = evaluationCriteria[categoryKey];
+            const categoryPresenters = presenters[categoryKey];
+            
+            const myTotalRow = table.tfoot.rows[0];
+            const avgTotalRow = table.tfoot.rows[1];
+
+            categoryPresenters.forEach((p, index) => {
+                const cellIndex = index + 2;
+                
+                let myTotal = 0;
+                if (allScores[p.id]?.scores?.[evaluatorId]) {
+                    myTotal = criteria.reduce((sum, c) => sum + (allScores[p.id].scores[evaluatorId][c.key] || 0), 0);
+                }
+                if (myTotalRow.cells[cellIndex]) {
+                    myTotalRow.cells[cellIndex].textContent = myTotal;
+                }
+
+                const presenterScores = allScores[p.id]?.scores;
+                let totalAverage = 0;
+                if (presenterScores) {
+                    const evaluatorIds = Object.keys(presenterScores);
+                    if (evaluatorIds.length > 0) {
+                        const sumOfScores = evaluatorIds.reduce((total, evalId) => {
+                           const evalTotal = criteria.reduce((sum, c) => sum + (presenterScores[evalId]?.[c.key] || 0), 0);
+                           return total + evalTotal;
+                        }, 0);
+                        totalAverage = (sumOfScores / evaluatorIds.length).toFixed(2);
+                    }
+                }
+                 if (avgTotalRow.cells[cellIndex]) {
+                    avgTotalRow.cells[cellIndex].textContent = totalAverage;
+                }
+            });
+        }
+
+        function renderEvaluationTable(categoryKey) {
+            const isSubmitted = submissionStatus[categoryKey] === true;
+            const criteria = evaluationCriteria[categoryKey];
+            const categoryPresenters = presenters[categoryKey];
+            
+            let introHTML = `<div class="p-4 mb-4 bg-sky-50 border border-sky-200 rounded-lg flex flex-col md:flex-row justify-between items-start md:items-center">
+                                <p class="text-slate-700 mb-3 md:mb-0 md:mr-4 flex-grow">${introTexts[categoryKey]}</p>
+                                <button data-category="${categoryKey}" class="submit-btn w-full md:w-auto flex-shrink-0 bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:bg-slate-400 disabled:cursor-not-allowed" ${isSubmitted ? 'disabled' : ''}>
+                                    ${isSubmitted ? '제출 완료' : '최종 제출'}
+                                </button>
+                             </div>`;
+
+            let tableHTML = `<div class="overflow-x-auto"><table class="w-full text-sm text-left text-slate-500">`;
+            tableHTML += `<thead class="text-xs text-slate-700 uppercase bg-slate-100"><tr>`;
+            tableHTML += `<th scope="col" class="px-6 py-3 rounded-tl-lg">평가항목</th>`;
+            tableHTML += `<th scope="col" class="px-6 py-3">배점</th>`;
+            categoryPresenters.forEach(p => { tableHTML += `<th scope="col" class="px-6 py-3 text-center">${p.name}</th>`; });
+            tableHTML += `<th scope="col" class="px-6 py-3 rounded-tr-lg"></th></tr></thead>`;
+            tableHTML += `<tbody>`;
+            criteria.forEach(c => {
+                tableHTML += `<tr class="bg-white border-b">`;
+                tableHTML += `<th scope="row" class="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">${c.name}</th>`;
+                tableHTML += `<td class="px-6 py-4 text-center">${c.max}</td>`;
+                categoryPresenters.forEach(p => {
+                    const score = allScores[p.id]?.scores?.[evaluatorId]?.[c.key];
+                    const myScore = (score === null || score === undefined) ? '' : score;
+                    tableHTML += `<td class="px-6 py-4"><input type="number" max="${c.max}" min="0" value="${myScore}" data-id="${p.id}" data-key="${c.key}" class="score-input w-20 text-center p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500" ${isSubmitted ? 'disabled' : ''}></td>`;
+                });
+                tableHTML += `<td></td></tr>`;
+            });
+            tableHTML += `</tbody>`;
+            tableHTML += `<tfoot class="font-bold text-slate-900">`;
+            tableHTML += `<tr class="border-t-2"><th scope="row" class="px-6 py-4">내 점수 합계</th><td></td>`;
+            categoryPresenters.forEach(p => {
+                const myTotal = criteria.reduce((sum, c) => sum + (allScores[p.id]?.scores?.[evaluatorId]?.[c.key] || 0), 0);
+                tableHTML += `<td class="px-6 py-4 text-center text-lg text-sky-600">${myTotal}</td>`;
+            });
+            tableHTML += `<td></td></tr>`;
+            tableHTML += `<tr class="border-t"><th scope="row" class="px-6 py-4">평균 점수</th><td></td>`;
+            categoryPresenters.forEach(p => {
+                const presenterScores = allScores[p.id]?.scores;
+                let totalAverage = 0;
+                if(presenterScores) {
+                    const evaluatorIds = Object.keys(presenterScores);
+                    if(evaluatorIds.length > 0) {
+                        const sumOfScores = evaluatorIds.reduce((total, evalId) => total + criteria.reduce((sum, c) => sum + (presenterScores[evalId]?.[c.key] || 0), 0), 0);
+                        totalAverage = (sumOfScores / evaluatorIds.length).toFixed(2);
+                    }
+                }
+                tableHTML += `<td class="px-6 py-4 text-center text-lg text-teal-600">${totalAverage}</td>`;
+            });
+            tableHTML += `<td></td></tr>`;
+            tableHTML += `</tfoot></table></div>`;
+            return introHTML + tableHTML;
+        }
+        
+        function getUniqueEvaluators() {
+            const evaluatorSet = new Set();
+            for (const presenterId in allScores) {
+                if (allScores[presenterId].scores) {
+                    Object.keys(allScores[presenterId].scores).forEach(evaluatorId => {
+                        evaluatorSet.add(evaluatorId);
+                    });
+                }
+            }
+            return Array.from(evaluatorSet).sort();
+        }
+
+        function renderDetailedResults() {
+            const evaluators = getUniqueEvaluators();
+            let html = `<div class="p-4 mb-6 bg-sky-50 border border-sky-200 rounded-lg text-slate-700"><p>${introTexts.detailed_results}</p></div>`;
+
+            html += `<div class="overflow-x-auto bg-white rounded-lg shadow"><table class="w-full text-sm text-left text-slate-500">`;
+            
+            let headerHtml = `<thead class="text-xs text-slate-700 uppercase bg-slate-100">`;
+            headerHtml += `<tr><th class="px-6 py-4 sticky left-0 bg-slate-100 z-10" rowspan="2">평가자</th>`;
+            
+            Object.keys(presenters).forEach(category => {
+                headerHtml += `<th class="px-6 py-3 text-center" colspan="${presenters[category].length}">${categoryDisplayNames[category]}</th>`;
+            });
+            headerHtml += `</tr><tr>`;
+            Object.keys(presenters).forEach(category => {
+                presenters[category].forEach(presenter => {
+                    headerHtml += `<th class="px-4 py-3 text-center font-medium">${presenter.name}</th>`;
+                });
+            });
+            headerHtml += `</tr></thead>`;
+
+            let bodyHtml = `<tbody>`;
+            evaluators.forEach(evaluator => {
+                bodyHtml += `<tr class="bg-white border-b"><td class="px-6 py-4 font-medium text-slate-900 sticky left-0 bg-white z-10">${evaluator}</td>`;
+                Object.keys(presenters).forEach(category => {
+                    presenters[category].forEach(presenter => {
+                        let totalScore = 0;
+                        const criteria = evaluationCriteria[category];
+                        const scores = allScores[presenter.id]?.scores?.[evaluator];
+                        if (scores) {
+                            totalScore = criteria.reduce((sum, c) => sum + (scores[c.key] || 0), 0);
+                        }
+                        bodyHtml += `<td class="px-6 py-4 text-center">${totalScore || '-'}</td>`;
+                    });
+                });
+                bodyHtml += `</tr>`;
+            });
+            bodyHtml += `</tbody>`;
+
+            let footerHtml = `<tfoot class="font-bold text-slate-900 bg-slate-50"><tr class="border-t-2"><td class="px-6 py-4 sticky left-0 bg-slate-50 z-10">평균</td>`;
+            Object.keys(presenters).forEach(category => {
+                 presenters[category].forEach(presenter => {
+                    const presenterScores = allScores[presenter.id]?.scores;
+                    let averageScore = 0;
+                    if (presenterScores) {
+                        const evalIds = Object.keys(presenterScores);
+                        if (evalIds.length > 0) {
+                            const totalSum = evalIds.reduce((sum, evalId) => {
+                                const criteria = evaluationCriteria[presenter.category] || evaluationCriteria[category];
+                                if (!criteria) return sum;
+                                const currentEvalScore = criteria.reduce((s, c) => s + (presenterScores[evalId]?.[c.key] || 0), 0);
+                                return sum + currentEvalScore;
+                            }, 0);
+                            averageScore = (totalSum / evalIds.length).toFixed(2);
+                        }
+                    }
+                    footerHtml += `<td class="px-6 py-4 text-center text-teal-600">${averageScore || '0.00'}</td>`;
+                });
+            });
+            footerHtml += `</tr></tfoot>`;
+
+            html += headerHtml + bodyHtml + footerHtml + `</table></div>`;
+            return html;
+        }
+
+        function calculateResults() {
+            let results = {};
+            Object.keys(presenters).forEach(category => {
+                results[category] = presenters[category].map(p => {
+                    const presenterData = allScores[p.id];
+                    let averageScore = 0;
+                    if (presenterData && presenterData.scores) {
+                        const evaluatorIds = Object.keys(presenterData.scores);
+                        if (evaluatorIds.length > 0) {
+                            const totalScore = evaluatorIds.reduce((sum, evalId) => sum + (evaluationCriteria[category] || []).reduce((s, c) => s + (presenterData.scores[evalId]?.[c.key] || 0), 0), 0);
+                            averageScore = totalScore / evaluatorIds.length;
+                        }
+                    }
+                    return { ...p, score: averageScore };
+                }).sort((a, b) => b.score - a.score);
+                results[category].forEach((p, index) => {
+                    if (index === 0 && p.score > 0) p.award = '최우수';
+                    else if ((index === 1 || index === 2) && p.score > 0) p.award = '우수';
+                    else if (p.score > 0) p.award = '장려';
+                    else p.award = '-';
+                });
+            });
+            return results;
+        }
+
+        function renderResults() {
+            let introHTML = `<div class="p-4 mb-6 bg-sky-50 border border-sky-200 rounded-lg text-slate-700"><p>${introTexts.results}</p></div>`;
+            let contentHTML = `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">`;
+            const results = calculateResults();
+            
+            contentHTML += `<div><h2 class="text-2xl font-bold mb-4 text-slate-800">부문별 훈격</h2><div class="overflow-x-auto bg-white rounded-lg shadow"><table class="w-full text-sm text-left text-slate-500">`;
+            contentHTML += `<thead class="text-xs text-slate-700 uppercase bg-slate-100"><tr><th class="px-6 py-3">부문</th><th class="px-6 py-3">발표자</th><th class="px-6 py-3">평균점수</th><th class="px-6 py-3">훈격</th></tr></thead><tbody>`;
+            Object.keys(results).forEach(category => {
+                results[category].forEach((p, index) => {
+                    contentHTML += `<tr class="bg-white border-b">
+                                ${index === 0 ? `<td class="px-6 py-4 font-semibold" rowspan="${results[category].length}">${categoryDisplayNames[category] || category}</td>` : ''}
+                                <td class="px-6 py-4 font-medium text-slate-900">${p.name}</td>
+                                <td class="px-6 py-4">${p.score.toFixed(2)}</td>
+                                <td class="px-6 py-4 font-bold ${p.award === '최우수' ? 'text-amber-500' : p.award === '우수' ? 'text-sky-500' : 'text-slate-600'}">${p.award}</td></tr>`;
+                });
+            });
+            contentHTML += `</tbody></table></div></div>`;
+
+            contentHTML += `<div><h2 class="text-2xl font-bold mb-4 text-slate-800">부문별 점수 차트</h2><div class="space-y-8">`;
+            Object.keys(presenters).forEach(category => {
+                const chartHeight = presenters[category].length * 40 + 40;
+                contentHTML += `<div><h3 class="font-semibold mb-2">${categoryDisplayNames[category] || category} 평균 점수</h3><div class="chart-container mx-auto" style="height:${chartHeight}px"><canvas id="${category}-chart"></canvas></div></div>`;
+            });
+            contentHTML += `</div></div></div>`;
+            return introHTML + contentHTML;
+        }
+
+        function renderAllCharts() {
+            const results = calculateResults();
+            Object.keys(results).forEach(category => {
+                const ctx = document.getElementById(`${category}-chart`);
+                if (ctx) {
+                    const existingChart = Chart.getChart(ctx);
+                    if (existingChart) {
+                        existingChart.destroy();
+                    }
+                    const reversedResults = [...results[category]].reverse();
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: reversedResults.map(p => p.name),
+                            datasets: [{
+                                label: '평균 점수',
+                                data: reversedResults.map(p => p.score.toFixed(2)),
+                                backgroundColor: 'rgba(14, 165, 233, 0.8)',
+                                borderColor: 'rgba(14, 165, 233, 1)',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            scales: { x: { beginAtZero: true, max: 100 } },
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                }
+            });
+        }
+
+        function handleLogin() {
+            const nameInput = document.getElementById('evaluator-name');
+            const passwordInput = document.getElementById('password');
+            const errorDiv = document.getElementById('login-error');
+            const errorMessage = document.getElementById('login-error-message');
+
+            const name = nameInput.value.trim();
+            const password = passwordInput.value;
+
+            if (name === '') {
+                errorMessage.textContent = '성명을 입력해 주세요.';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            if (password !== 'atec1114') {
+                errorMessage.textContent = '비밀번호가 일치하지 않습니다.';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            errorDiv.classList.add('hidden');
+            evaluatorId = name;
+            document.getElementById('login-container').classList.add('hidden');
+            document.getElementById('app-container').classList.remove('hidden');
+            initializeFirebase();
+        }
+
+        const debouncedUpdateScore = debounce((id, key, value) => { updateScore(id, key, value); }, 400); 
+
+        document.getElementById('tab-buttons').addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                activeTab = e.target.dataset.tab;
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                e.target.classList.add('active');
+                render();
+            }
+        });
+
+        document.getElementById('tab-content').addEventListener('click', (e) => {
+             if (e.target.classList.contains('submit-btn')) {
+                const categoryKey = e.target.dataset.category;
+                submitCategory(categoryKey);
+            }
+        });
+
+        document.getElementById('tab-content').addEventListener('input', (e) => {
+            if (e.target.classList.contains('score-input')) {
+                const { id, key } = e.target.dataset;
+                const value = e.target.value;
+                const max = parseInt(e.target.max, 10);
+                let scoreValue = value === '' ? null : parseInt(value, 10);
+
+                if (scoreValue !== null) {
+                    if (scoreValue > max) { e.target.value = max; scoreValue = max; }
+                    if (scoreValue < 0) { e.target.value = 0; scoreValue = 0; }
+                }
+                
+                if (!allScores[id]) {
+                    allScores[id] = { scores: {} };
+                }
+                if (!allScores[id].scores) {
+                    allScores[id].scores = {};
+                }
+                if (!allScores[id].scores[evaluatorId]) {
+                    allScores[id].scores[evaluatorId] = {};
+                }
+                allScores[id].scores[evaluatorId][key] = scoreValue;
+                
+                renderColumnTotals(activeTab);
+                
+                debouncedUpdateScore(id, key, e.target.value);
+            }
+        });
+
+        document.getElementById('login-btn').addEventListener('click', handleLogin);
+        document.getElementById('simulationBtn').addEventListener('click', runSimulation);
+        document.getElementById('closeModalBtn').addEventListener('click', hideMessage);
+    </script>
+</body>
+</html>
+
